@@ -3,7 +3,7 @@ const initData = require('./data.js');
 const Listing = require('../models/listing.js');
 
 async function main(){
-    await mongoose.connect('mongodb://localhost:27017/StayNest');
+    await mongoose.connect(process.env.MONGO_URL);
 }
 main().then(() => {
   console.log('Connected to MongoDB');

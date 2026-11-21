@@ -1,107 +1,86 @@
-const express = require('express');
-const app = express();
-const port = 3000;
-const mongoose = require('mongoose');
-const path = require('path');
-const methodOverride = require('method-override');
-const ejsMate = require('ejs-mate');
-const ExpressError = require("./utils/ExpressError.js")
-const listingRouter = require("./routes/listings.js");
-const reviewRouter = require("./routes/review.js");
-const userRouter = require("./routes/user.js")
+
+const express = require("express");
+const path = require("path");
+const methodOverride = require("method-override");
+const ejsMate = require("ejs-mate");
 const session = require("express-session");
 const flash = require("connect-flash");
-const passport = require("passport")
-const LocalStrategy = require("passport-local")
-const User = require("./models/user.js")
+const passport = require("passport");
+const LocalStrategy = require("passport-local");
 
-async function main(){
-    await mongoose.connect('mongodb://localhost:27017/StayNest');
-}
-main().then(() => {
-  console.log('Connected to MongoDB');
-}).catch(console.error);
+const User = require("./models/user.js");
+const ExpressError = require("./utils/ExpressError.js");
 
+const listingRouter = require("./routes/listings.js");
+const reviewRouter = require("./routes/review.js");
+const userRouter = require("./routes/user.js");
 
+const app = express();
+
+// View engine setup
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
+app.engine("ejs", ejsMate);
+
+// Middleware
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.urlencoded({ extended: true }));
-app.use(methodOverride('_method'));
-app.engine('ejs', ejsMate);
+app.use(methodOverride("_method"));
 
+// Session configuration
 const sessionOptions = {
-    secret: "mysupersecretcode",
+    secret: process.env.SESSION_SECRET,
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
     cookie: {
-        expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
         maxAge: 7 * 24 * 60 * 60 * 1000,
         httpOnly: true,
     },
 };
 
-
-
-app.get("/", (req, res) => {
-    res.send("Hello!, This is staynest please move to alllistings")
-});
-
-
 app.use(session(sessionOptions));
 app.use(flash());
 
+// Passport configuration
 app.use(passport.initialize());
 app.use(passport.session());
+
 passport.use(new LocalStrategy(User.authenticate()));
+
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
 
-
+// Locals middleware
 app.use((req, res, next) => {
     res.locals.success = req.flash("success");
     res.locals.error = req.flash("error");
     res.locals.currUser = req.user;
     next();
-})
+});
 
-// app.get("/demouser", async(req, res)=> {
-//     let fakeUser = new User({
-//         email: "student@gmail.com",
-//         username: "delta-student"
-//     });
+// Home route
+app.get("/", (req, res) => {
+    res.send("Hello! This is StayNest. Please move to all listings.");
+});
 
-//     let registerdUser = await User.register(fakeUser, "helloworld");
-//     res.send(registerdUser);
-// })
- 
-// this is for all listings route
-app.use('/listings', listingRouter);
-
-
-// this is for all reviews route
+// Routes
+app.use("/listings", listingRouter);
 app.use("/listings/:id/reviews", reviewRouter);
-
-// this is for users route
 app.use("/", userRouter);
 
-
-
-// non of routes match then handling error
-
+// 404 error handling
 app.all("/{*splat}", (req, res, next) => {
     next(new ExpressError(404, "Page Not Found"));
 });
 
-
-// middleware to handle error
+// Error handling middleware
 app.use((err, req, res, next) => {
-    let {statusCode = 500, message = "Something went wrong"} = err;
-    // res.status(statusCode).send(message);
-    res.status(statusCode).render("./listings/error.ejs", {message})
-})
+    const {
+        statusCode = 500,
+        message = "Something went wrong",
+    } = err;
 
-
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+    res.status(statusCode).render("./listings/error.ejs", { message });
 });
+
+module.exports = app;
